@@ -21,11 +21,16 @@ WanGP supports the Wan (and derived models), Hunyuan Video and LTV Video models 
 
 
 ## 🔥 Latest News!!
-* May 18 2025: 👋 Wan 2.1GP v5.1 : Bonus Day, added LTX Video 13B Distilled: generate in less than one minute, very high quality Videos !\
+* May 23 2025: 👋 Wan 2.1GP v5.21 : Improvements for Vace: better transitions between Sliding Windows,Support for Image masks in Matanyone, new Extend Video for Vace, different types of automated background removal 
+* May 20 2025: 👋 Wan 2.1GP v5.2 : Added support for Wan CausVid which is a distilled Wan model that can generate nice looking videos in only 4 to 12 steps.
+ The great thing is that Kijai (Kudos to him !) has created a CausVid Lora that can be combined with any existing Wan t2v model 14B like Wan Vace 14B.
+ See instructions below on how to use CausVid.\
+ Also as an experiment I have added support for the MoviiGen, the first model that claims to capable to generate 1080p videos (if you have enough VRAM (20GB...) and be ready to wait for a long time...). Don't hesitate to share your impressions on the Discord server.
+* May 18 2025: 👋 Wan 2.1GP v5.1 : Bonus Day, added LTX Video 13B Distilled: generate in less than one minute, very high quality Videos !
 * May 17 2025: 👋 Wan 2.1GP v5.0 : One App to Rule Them All !\
     Added support for the other great open source architectures:
     - Hunyuan Video : text 2 video (one of the best, if not the best t2v) ,image 2 video and the recently released Hunyuan Custom (very good identify preservation when injecting a person into a video)
-    - LTX Video 13B (released last week): very long video support and fast 720p generation.Wan GP version has been greatly optimzed and reduced VRAM requirements by 4 !
+    - LTX Video 13B (released last week): very long video support and fast 720p generation.Wan GP version has been greatly optimzed and reduced LTX Video VRAM requirements by 4 !
 
     Also:
     - Added supported for the best Control Video Model, released 2 days ago : Vace 14B
@@ -268,6 +273,23 @@ python wgp.py --lora-preset  mylorapreset.lset # where 'mylorapreset.lset' is a 
 
 You will find prebuilt Loras on https://civitai.com/ or you will be able to build them with tools such as kohya or onetrainer.
 
+### CausVid Lora
+
+Wan CausVid is a distilled Wan model that can generate nice looking videos in only 4 to 12 steps. Also as a distilled model it doesnt require CFG and is two times faster for the same number of steps. 
+The great thing is that Kijai (Kudos to him !) has created a CausVid Lora that can be combined with any existing Wan t2v model 14B like Wan Vace 14B to accelerate other models too. It is possible it works also with Wan i2v models. 
+
+Instructions:
+1) Download first the Lora: https://huggingface.co/Kijai/WanVideo_comfy/blob/main/Wan21_CausVid_14B_T2V_lora_rank32.safetensors
+2) Choose a Wan t2v model (for instance Wan 2.1 text2video 13B or Vace 13B ) 
+3) Turn on the Advanced Mode by checking the corresponding checkbox
+4) In the Advanced Generation Tab: select Guidance Scale =1, Shift Scale = 7
+5) In the Advanced Lora Tab : Select the CausVid Lora (click the Refresh button at the top if you dont see it), and enter 0.3 as Lora multiplier
+6) Now select a 12 steps generation and Click Generate
+
+You can reduce the number of steps to as low as 4 but you will need to increase progressively at the same time the Lora muliplier up to 1. Please note the lower the number of steps the lower the quality (especially the motion).
+
+You can combine the CausVid Lora and other Loras (just follow the instructions above)
+
 ### Macros (basic)
 In *Advanced Mode*, you can starts prompt lines with a "!" , for instance:\ 
 ```
@@ -286,17 +308,20 @@ You can define multiple lines of macros. If there is only one macro line, the ap
 
 ### VACE ControlNet introduction
 
-Vace is a ControlNet 1.3B text2video model that allows you to do Video to Video and Reference to Video (inject your own images into the output video). So with Vace you can inject in the scene people or objects of your choice, animate a person, perform inpainting or outpainting, continue a video, ... 
+Vace is a ControlNet that allows you to do Video to Video and Reference to Video (inject your own images into the output video). It is probably one of the most powerful Wan models and you will be able to do amazing things when you master it: inject in the scene people or objects of your choice, animate a person, perform inpainting or outpainting, continue a video, ... 
 
-First you need to select the Vace 1.3B model in the Drop Down box at the top. Please note that Vace works well for the moment only with videos up to 5s (81 frames).
+First you need to select the Vace 1.3B model or the Vace 13B model in the Drop Down box at the top. Please note that Vace works well for the moment only with videos up to 7s with the Riflex option turned on.
 
 Beside the usual Text Prompt, three new types of visual hints can be provided (and combined !):
-- a Control Video: Based on your choice, you can decide to transfer the motion, the depth in a new Video. You can tell WanGP to use only the first n frames of Control Video and to extrapolate the rest. You can also do inpainting ). If the video contains area of grey color 127, they will be considered as masks and will be filled based on the Text prompt of the reference Images. 
+- *a Control Video*\
+Based on your choice, you can decide to transfer the motion, the depth in a new Video. You can tell WanGP to use only the first n frames of Control Video and to extrapolate the rest. You can also do inpainting. If the video contains area of grey color 127, they will be considered as masks and will be filled based on the Text prompt of the reference Images. 
 
-- reference Images: Use this to inject people or objects of your choice in the video. You can select multiple reference Images. The integration of the image is more efficient if the background is replaced by the full white color. You can do that with your preferred background remover or use the built in background remover by checking the box *Remove background*
+- *Reference Images*\
+ A reference Image can be as well a background that you want to use as a setting for the video or people or objects of your choice that you want to inject in the video. You can select multiple reference Images. The integration of object / person image is more efficient if the background is replaced by the full white color. For complex background removal you can use the Image version of the Matanyone tool that is embedded with WanGP or use you can use the fast on the fly background remover by selecting an option in the drop down box *Remove background*. Becareful not to remove the background of the reference image that is a landscape or setting  (always the first reference image) that you want to use as a start image / background for the video. It helps greatly to reference and describe explictly the injected objects / people of the Reference Images in the text prompt.
 
-- a Video Mask
-This offers a stronger mechanism to tell Vace which parts should be kept (black) or replaced (white). You can do as well inpainting / outpainting, fill the missing part of a video more efficientlty with just the video hint. If a video mask is white, it will be generated so with black frames at the beginning and at the end and the rest white, you could generate the missing frames in between.
+- *a Video Mask*\
+This offers a stronger mechanism to tell Vace which parts should be kept (black) or replaced (white). You can do as well inpainting / outpainting, fill the missing part of a video more efficientlty with just the video hint. For instance, if a video mask is white except at the beginning and at the end where it is black, the first and last frames will be kept and everything in between will be generated.
+
 
 
 Examples:
@@ -315,13 +340,29 @@ There is also a guide that describes the various combination of hints (https://g
 It seems you will get better results with Vace if you turn on "Skip Layer Guidance" with its default configuration.
 
 Other recommended setttings for Vace:
-- Use a long prompt description especially for the people / objects that are in the background and not in reference images. This will ensure consistency between the windows.
+- Use a long prompt description especially for the people / objects that are in the background and not in reference images.  This will ensure consistency between the windows.
 - Set a medium size overlap window: long enough to give the model a sense of the motion but short enough so any overlapped blurred frames do no turn the rest of the video into a blurred video
 - Truncate at least the last 4 frames of the each generated window as Vace last frames tends to be blurry
 
+**WanGP integrates the Matanyone tool which is tuned to work with Vace**.
 
-### VACE and Sky Reels v2 Diffusion Forcing Slidig Window
-With this mode (that works for the moment only with Vace and Sky Reels v2) you can merge mutiple Videos to form a very long video (up to 1 min). 
+This can be very useful to create at the same time a control video and a mask video that go together.\
+For example, if you want to replace a face of a person in a video:
+- load the video in the Matanyone tool
+- click the face on the first frame and create a mask for it (if you have some trouble to select only the face look at the tips below)
+- generate both the control video and the mask video by clicking *Generate Video Matting*
+- Click *Export to current Video Input and Video Mask*
+- In the *Reference Image* field of the Vace screen, load a picture of the replacement face
+
+Please notes that sometime it may be useful to create *Background Masks* if want for instance to replace everything but a character that is in the video. You can do that by selecting *Background Mask* in the *Matanyone settings*
+
+If you have some trouble creating the perfect mask, be aware of these tips:
+- Using the Matanyone Settings you can also define Negative Point Prompts to remove parts of the current selection.
+- Sometime it is very hard to fit everything you want in a single mask, it may be much easier to combine multiple independent sub Masks before producing the Matting : each sub Mask is created by selecting an  area of an image and by clicking the Add Mask button. Sub masks can then be enabled / disabled in the Matanyone settings.
+
+
+### VACE, Sky Reels v2 Diffusion Forcing Slidig Window and LTX Video
+With this mode (that works for the moment only with Vace, Sky Reels v2 and LTX Video) you can merge mutiple Videos to form a very long video (up to 1 min). 
 
 When combined with Vace this feature can use the same control video to generate the full Video that results from concatenining the different windows. For instance the first 0-4s of the control video will be used to generate the first window then the next 4-8s of the control video will be used to generate the second window, and so on. So if your control video contains a person walking, your generate video could contain up to one minute of this person walking.
 
@@ -331,11 +372,15 @@ Sliding Windows are turned on by default and are triggered as soon as you try to
 
 Although the window duration is set by the *Sliding Window Size* form field, the actual number of frames generated by each iteration will be less, because of the *overlap frames* and *discard last frames*: 
 - *overlap frames* : the first frames of a new window are filled with last frames of the previous window in order to ensure continuity between the two windows
-- *discard last frames* : quite often (Vace model Only) the last frames of a window have a worse quality. You can decide here how many ending frames of a new window should be dropped.
-s
+- *discard last frames* : sometime (Vace 1.3B model Only) the last frames of a window have a worse quality. You can decide here how many ending frames of a new window should be dropped.
+
+There is some inevitable quality degradation over time to due to accumulated errors in calculation. One trick to reduce it / hide it is to add some noise (usually not noticable) on the overlapped frames using the *add overlapped noise* option. 
+
+
 Number of Generated Frames = [Number of Windows - 1] * ([Window Size] - [Overlap Frames] - [Discard Last Frames]) +  [Window Size]
 
 Experimental: if your prompt is broken into multiple lines (each line separated by a carriage return), then each line of the prompt will be used for a new window. If there are more windows to generate than prompt lines, the last prompt line will be repeated. 
+
 
 ### Command line parameters for Gradio Server
 --i2v : launch the image to video generator\
