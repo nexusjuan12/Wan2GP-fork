@@ -16,7 +16,8 @@ cd ~
 wget -O Miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-py310_24.1.2-0-Linux-x86_64.sh
 bash Miniconda.sh -b -p $HOME/miniconda3
 eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
-
+echo 'export PATH="$HOME/miniconda3/bin:$PATH"' >> ~/.bashrc
+$HOME/miniconda3/bin/conda init bash
 echo "[3] Creating Conda environment: $ENV_NAME"
 conda create -y -n $ENV_NAME python=$PYTHON_VERSION
 conda activate $ENV_NAME
