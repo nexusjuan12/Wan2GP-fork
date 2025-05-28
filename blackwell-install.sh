@@ -4,7 +4,7 @@ set -e
 # Variables
 ENV_NAME="wan2gp"
 PYTHON_VERSION="3.10.9"
-WAN_REPO="https://github.com/deepbeepmeep/Wan2GP.git"
+WAN_REPO="https://github.com/nexusjuan12/Wan2GP-fork.git"
 SAGE_REPO="https://github.com/thu-ml/SageAttention.git"
 
 echo "[1] Installing system dependencies..."
