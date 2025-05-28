@@ -26,7 +26,7 @@ pip install --pre torch torchvision torchaudio --index-url https://download.pyto
 
 echo "[5] Cloning Wan2GP..."
 git clone "$WAN_REPO"
-cd Wan2GP
+cd Wan2GP-fork
 
 echo "[6] Installing WAN2GP dependencies..."
 pip install -r blackwell-requirements.txt
