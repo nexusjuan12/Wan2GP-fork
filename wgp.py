@@ -14,6 +14,7 @@ import gradio as gr
 import random
 import json
 import wan
+from wan.utils import notification_sound
 from wan.configs import MAX_AREA_CONFIGS, WAN_CONFIGS, SUPPORTED_SIZES, VACE_SIZE_CONFIGS
 from wan.utils.utils import cache_video
 from wan.modules.attention import get_attention_modes, get_supported_attention_modes
@@ -1518,20 +1519,22 @@ for src,tgt in zip(src_move,tgt_move):
     
 
 if not Path(server_config_filename).is_file():
-    server_config = {"attention_mode" : "auto",  
-                     "transformer_types": [], 
-                     "transformer_quantization": "int8",
-                     "text_encoder_quantization" : "int8",
-                     "save_path": "outputs", #os.path.join(os.getcwd(), 
-                     "compile" : "",
-                     "metadata_type": "metadata",
-                     "default_ui": "t2v",
-                     "boost" : 1,
-                     "clear_file_list" : 5,
-                     "vae_config": 0,
-                     "profile" : profile_type.LowRAM_LowVRAM,
-                     "preload_model_policy": [],
-                     "UI_theme": "default" }
+    server_config = {
+        "attention_mode" : "auto",  
+        "transformer_types": [], 
+        "transformer_quantization": "int8",
+        "text_encoder_quantization" : "int8",
+        "save_path": "outputs", #os.path.join(os.getcwd(), 
+        "compile" : "",
+        "metadata_type": "metadata",
+        "default_ui": "t2v",
+        "boost" : 1,
+        "clear_file_list" : 5,
+        "vae_config": 0,
+        "profile" : profile_type.LowRAM_LowVRAM,
+        "preload_model_policy": [],
+        "UI_theme": "default"
+    }
 
     with open(server_config_filename, "w", encoding="utf-8") as writer:
         writer.write(json.dumps(server_config))
@@ -1544,7 +1547,7 @@ else:
 for path in  ["wan2.1_Vace_1.3B_preview_bf16.safetensors", "sky_reels2_diffusion_forcing_1.3B_bf16.safetensors","sky_reels2_diffusion_forcing_720p_14B_bf16.safetensors",
 "sky_reels2_diffusion_forcing_720p_14B_quanto_int8.safetensors", "sky_reels2_diffusion_forcing_720p_14B_quanto_fp16_int8.safetensors", "wan2.1_image2video_480p_14B_bf16.safetensors", "wan2.1_image2video_480p_14B_quanto_int8.safetensors",
 "wan2.1_image2video_720p_14B_quanto_int8.safetensors", "wan2.1_image2video_720p_14B_quanto_fp16_int8.safetensors", "wan2.1_image2video_720p_14B_bf16.safetensors",
-"wan2.1_text2video_1.3B_bf16.safetensors", "wan2.1_text2video_14B_bf16.safetensors", "wan2.1_text2video_14B_quanto_int8.safetensors",
+"wan2.1_text2video_14B_bf16.safetensors", "wan2.1_text2video_14B_quanto_int8.safetensors",
 "wan2.1_Vace_1.3B_mbf16.safetensors", "wan2.1_Vace_14B_mbf16.safetensors", "wan2.1_Vace_14B_quanto_mbf16_int8.safetensors"
 ]:
     if Path(os.path.join("ckpts" , path)).is_file():
@@ -1624,7 +1627,7 @@ def get_model_family(model_type):
 
 def test_class_i2v(model_type):
     model_type = get_base_model_type(model_type)
-    return model_type in ["i2v", "fun_inp_1.3B", "fun_inp", "flf2v_720p",  "fantasy", "hunyuan_i2v" ] 
+    return model_type in ["i2v", "i2v_720p", "fun_inp_1.3B", "fun_inp", "flf2v_720p",  "fantasy", "hunyuan_i2v" ] 
 
 def get_model_name(model_type, description_container = [""]):
     finetune_def = get_model_finetune_def(model_type)
@@ -1731,19 +1734,19 @@ def get_model_filename(model_type, quantization ="int8", dtype_policy = ""):
         raw_filename = choices[0]
     else:
         if quantization in ("int8", "fp8"):
-            sub_choices = [ name for name in choices if quantization in name]
+            sub_choices = [ name for name in choices if quantization in name or quantization.upper() in name]
         else:
             sub_choices = [ name for name in choices if "quanto" not in name]
 
         if len(sub_choices) > 0:
             dtype_str = "fp16" if dtype == torch.float16 else "bf16"
-            new_sub_choices = [ name for name in sub_choices if dtype_str in name]
+            new_sub_choices = [ name for name in sub_choices if dtype_str in name or dtype_str.upper() in name]
             sub_choices = new_sub_choices if len(new_sub_choices) > 0 else sub_choices
             raw_filename = sub_choices[0]
         else:
             raw_filename = choices[0]
 
-    if dtype == torch.float16 and not "fp16" in raw_filename and model_family == "wan" and finetune_def == None :
+    if dtype == torch.float16 and not any("fp16","FP16") in raw_filename and model_family == "wan" and finetune_def == None :
         if "quanto_int8" in raw_filename:
             raw_filename = raw_filename.replace("quanto_int8", "quanto_fp16_int8")
         elif "quanto_bf16_int8" in raw_filename:
@@ -1753,6 +1756,8 @@ def get_model_filename(model_type, quantization ="int8", dtype_policy = ""):
     return raw_filename
 
 def get_transformer_dtype(model_family, transformer_dtype_policy):
+    if not isinstance(transformer_dtype_policy, str):
+        return transformer_dtype_policy
     if len(transformer_dtype_policy) == 0:
         if not bfloat16_supported:
             return torch.float16
@@ -2290,19 +2295,25 @@ def get_transformer_model(model):
 
 def load_models(model_type):
     global transformer_type, transformer_loras_filenames
-    model_filename = get_model_filename(model_type=model_type, quantization= transformer_quantization, dtype_policy = transformer_dtype_policy) 
     base_model_type = get_base_model_type(model_type)
     finetune_def = get_model_finetune_def(model_type)
-    quantizeTransformer =  finetune_def !=None and  transformer_quantization in ("int8", "fp8") and finetune_def.get("auto_quantize", False) and not "quanto" in model_filename 
-        
-    model_family = get_model_family(model_type)
-    perc_reserved_mem_max = args.perc_reserved_mem_max
     preload =int(args.preload)
-    save_quantized = args.save_quantized
+    save_quantized = args.save_quantized and finetune_def != None
+    model_filename = get_model_filename(model_type=model_type, quantization= "" if save_quantized else transformer_quantization, dtype_policy = transformer_dtype_policy) 
+    if save_quantized and "quanto" in model_filename:
+        save_quantized = False
+        print("Need to provide a non quantized model to create a quantized model to be saved") 
+    quantizeTransformer = not save_quantized and finetune_def !=None and transformer_quantization in ("int8", "fp8") and finetune_def.get("auto_quantize", False) and not "quanto" in model_filename         
+    model_family = get_model_family(model_type)
+    transformer_dtype = get_transformer_dtype(model_family, transformer_dtype_policy)
+    if quantizeTransformer or "quanto" in model_filename:
+        transformer_dtype = torch.bfloat16 if "bf16" in model_filename or "BF16" in model_filename else transformer_dtype
+        transformer_dtype = torch.float16 if "fp16" in model_filename or"FP16" in model_filename else transformer_dtype
+    perc_reserved_mem_max = args.perc_reserved_mem_max
     if preload == 0:
         preload = server_config.get("preload_in_VRAM", 0)
     new_transformer_loras_filenames = None
-    dependent_models, dependent_models_types = get_dependent_models(model_type, quantization= transformer_quantization, dtype_policy = transformer_dtype_policy) 
+    dependent_models, dependent_models_types = get_dependent_models(model_type, quantization= transformer_quantization, dtype_policy = transformer_dtype) 
     new_transformer_loras_filenames = [model_filename]  if "_lora" in model_filename else None
     
     model_file_list = dependent_models + [model_filename]
@@ -2310,15 +2321,11 @@ def load_models(model_type):
     new_transformer_filename = model_file_list[-1] 
     if finetune_def != None:
         for module_type in finetune_def.get("modules", []):
-            model_file_list.append(get_model_filename(module_type, transformer_quantization, transformer_dtype_policy))
+            model_file_list.append(get_model_filename(module_type, transformer_quantization, transformer_dtype))
             model_type_list.append(module_type)
 
     for filename, file_model_type in zip(model_file_list, model_type_list): 
         download_models(filename, file_model_type)
-    transformer_dtype = get_transformer_dtype(model_family, transformer_dtype_policy)
-    if quantizeTransformer:
-        transformer_dtype = torch.bfloat16 if "bf16" in model_filename else transformer_dtype
-        transformer_dtype = torch.float16 if "fp16" in model_filename else transformer_dtype
     VAE_dtype = torch.float16 if server_config.get("vae_precision","16") == "16" else torch.float
     mixed_precision_transformer =  server_config.get("mixed_precision","0") == "1"
     transformer_filename = None
@@ -2364,7 +2371,7 @@ def load_models(model_type):
         prompt_enhancer_llm_tokenizer = None
 
         
-    offloadobj = offload.profile(pipe, profile_no= profile, compile = compile, quantizeTransformer = quantizeTransformer, loras = "transformer", coTenantsMap= {}, perc_reserved_mem_max = perc_reserved_mem_max , convertWeightsFloatTo = transformer_dtype, **kwargs)  
+    offloadobj = offload.profile(pipe, profile_no= profile, compile = compile, quantizeTransformer = False, loras = "transformer", coTenantsMap= {}, perc_reserved_mem_max = perc_reserved_mem_max , convertWeightsFloatTo = transformer_dtype, **kwargs)  
     if len(args.gpu) > 0:
         torch.set_default_device(args.gpu)
     transformer_loras_filenames = new_transformer_loras_filenames
@@ -2436,33 +2443,38 @@ def apply_changes(  state,
                     UI_theme_choice = "default",
                     enhancer_enabled_choice = 0,
                     fit_canvas_choice = 0,
-                    preload_in_VRAM_choice = 0
+                    preload_in_VRAM_choice = 0,
+                    notification_sound_enabled_choice = 1,
+                    notification_sound_volume_choice = 50
 ):
     if args.lock_config:
         return
     if gen_in_progress:
         return "<DIV ALIGN=CENTER>Unable to change config when a generation is in progress</DIV>", gr.update(), gr.update()
     global offloadobj, wan_model, server_config, loras, loras_names, default_loras_choices, default_loras_multis_str, default_lora_preset_prompt, default_lora_preset, loras_presets
-    server_config = {"attention_mode" : attention_choice,  
-                     "transformer_types": transformer_types_choices, 
-                     "text_encoder_quantization" : text_encoder_quantization_choice,
-                     "save_path" : save_path_choice,
-                     "compile" : compile_choice,
-                     "profile" : profile_choice,
-                     "vae_config" : vae_config_choice,
-                     "vae_precision" : VAE_precision_choice,
-                     "mixed_precision" : mixed_precision_choice,
-                     "metadata_type": metadata_choice,
-                     "transformer_quantization" : quantization_choice,
-                     "transformer_dtype_policy" : transformer_dtype_policy_choice,
-                     "boost" : boost_choice,
-                     "clear_file_list" : clear_file_list,
-                     "preload_model_policy" : preload_model_policy_choice,
-                     "UI_theme" : UI_theme_choice,
-                     "fit_canvas": fit_canvas_choice,
-                     "enhancer_enabled" : enhancer_enabled_choice,
-                     "preload_in_VRAM" : preload_in_VRAM_choice
-                       }
+    server_config = {
+        "attention_mode" : attention_choice,  
+        "transformer_types": transformer_types_choices, 
+        "text_encoder_quantization" : text_encoder_quantization_choice,
+        "save_path" : save_path_choice,
+        "compile" : compile_choice,
+        "profile" : profile_choice,
+        "vae_config" : vae_config_choice,
+        "vae_precision" : VAE_precision_choice,
+        "mixed_precision" : mixed_precision_choice,
+        "metadata_type": metadata_choice,
+        "transformer_quantization" : quantization_choice,
+        "transformer_dtype_policy" : transformer_dtype_policy_choice,
+        "boost" : boost_choice,
+        "clear_file_list" : clear_file_list,
+        "preload_model_policy" : preload_model_policy_choice,
+        "UI_theme" : UI_theme_choice,
+        "fit_canvas": fit_canvas_choice,
+        "enhancer_enabled" : enhancer_enabled_choice,
+        "preload_in_VRAM" : preload_in_VRAM_choice,
+        "notification_sound_enabled" : notification_sound_enabled_choice,
+        "notification_sound_volume" : notification_sound_volume_choice
+    }
 
     if Path(server_config_filename).is_file():
         with open(server_config_filename, "r", encoding="utf-8") as reader:
@@ -2496,7 +2508,7 @@ def apply_changes(  state,
     transformer_types = server_config["transformer_types"]
     model_filename = get_model_filename(transformer_type, transformer_quantization, transformer_dtype_policy)
     state["model_filename"] = model_filename
-    if all(change in ["attention_mode", "vae_config", "boost", "save_path", "metadata_type", "clear_file_list", "fit_canvas"] for change in changes ):
+    if all(change in ["attention_mode", "vae_config", "boost", "save_path", "metadata_type", "clear_file_list", "fit_canvas", "notification_sound_enabled", "notification_sound_volume"] for change in changes ):
         model_choice = gr.Dropdown()
     else:
         reload_needed = True
@@ -2647,7 +2659,21 @@ def refresh_gallery(state): #, msg
         for img_uri in list_uri:
             thumbnails += f'<TD><img src="{img_uri}" alt="Start" style="max-width:{thumbnail_size}; max-height:{thumbnail_size}; display: block; margin: auto; object-fit: contain;" /></TD>'
         
-        html = "<STYLE> #PINFO, #PINFO  th, #PINFO td {border: 1px solid #CCCCCC;background-color:#FFFFFF;}</STYLE><TABLE WIDTH=100% ID=PINFO ><TR><TD width=100%>" + prompt + "</TD>" + thumbnails + "</TR></TABLE>" 
+        # Get current theme from server config  
+        current_theme = server_config.get("UI_theme", "default")
+        
+        # Use minimal, adaptive styling that blends with any background
+        # This creates a subtle container that doesn't interfere with the page's theme
+        table_style = """
+            border: 1px solid rgba(128, 128, 128, 0.3); 
+            background-color: transparent; 
+            color: inherit; 
+            padding: 8px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        """
+        
+        html = f"<TABLE WIDTH=100% ID=PINFO style='{table_style}'><TR><TD width=100% style='{table_style}'>" + prompt + "</TD>" + thumbnails + "</TR></TABLE>" 
         html_output = gr.HTML(html, visible= True)
         return gr.Gallery(selected_index=choice, value = file_list), html_output, gr.Button(visible=False), gr.Button(visible=True), gr.Row(visible=True), update_queue_data(queue), gr.Button(interactive=  abort_interactive), gr.Button(visible= onemorewindow_visible)
 
@@ -3092,11 +3118,11 @@ def generate_video(
     # TeaCache
     if args.teacache > 0:
         tea_cache_setting = args.teacache 
-    trans.enable_teacache = tea_cache_setting > 0
-    if trans.enable_teacache:
+    trans.enable_cache = tea_cache_setting > 0
+    if trans.enable_cache:
         trans.teacache_multiplier = tea_cache_setting
         trans.rel_l1_thresh = 0
-        trans.teacache_start_step =  int(tea_cache_start_step_perc*num_inference_steps/100)
+        trans.cache_start_step =  int(tea_cache_start_step_perc*num_inference_steps/100)
         if get_model_family(model_type) == "wan":
             if image2video:
                 if '720p' in model_filename:
@@ -3323,7 +3349,7 @@ def generate_video(
             progress_args = [0, merge_status_context(status, "Encoding Prompt")]
             send_cmd("progress", progress_args)
 
-            if trans.enable_teacache:
+            if trans.enable_cache:
                 trans.teacache_counter = 0
                 trans.num_steps = num_inference_steps                
                 trans.teacache_skipped_steps = 0    
@@ -3412,7 +3438,7 @@ def generate_video(
                 trans.previous_residual = None
                 trans.previous_modulated_input = None
 
-            if trans.enable_teacache:
+            if trans.enable_cache:
                 print(f"Teacache Skipped Steps:{trans.teacache_skipped_steps}/{trans.num_steps}" )
 
             if samples != None:
@@ -3562,6 +3588,17 @@ def generate_video(
                 print(f"New video saved to Path: "+video_path)
                 file_list.append(video_path)
                 file_settings_list.append(configs)
+                
+                # Play notification sound for single video
+                try:
+                    if server_config.get("notification_sound_enabled", 1):
+                        volume = server_config.get("notification_sound_volume", 50)
+                        notification_sound.notify_video_completion(
+                            video_path=video_path, 
+                            volume=volume
+                        )
+                except Exception as e:
+                    print(f"Error playing notification sound for individual video: {e}")
 
                 send_cmd("output")
 
@@ -3905,6 +3942,13 @@ def process_tasks(state):
         status = f"Video generation was aborted. Total Generation Time: {end_time-start_time:.1f}s" 
     else:
         status = f"Total Generation Time: {end_time-start_time:.1f}s" 
+        # Play notification sound when video generation completed successfully
+        try:
+            if server_config.get("notification_sound_enabled", 1):
+                volume = server_config.get("notification_sound_volume", 50)
+                notification_sound.notify_video_completion(volume=volume)
+        except Exception as e:
+            print(f"Error playing notification sound: {e}")
     gen["status"] = status
     gen["status_display"] =  False
 
@@ -5738,6 +5782,24 @@ def generate_configuration_tab(state, blocks, header, model_choice, prompt_enhan
                 )
                 preload_in_VRAM_choice = gr.Slider(0, 40000, value=server_config.get("preload_in_VRAM", 0), step=100, label="Number of MB of Models that are Preloaded in VRAM (0 will use Profile default)")
 
+            with gr.Tab("Notifications"):
+                gr.Markdown("### Notification Settings")
+                notification_sound_enabled_choice = gr.Dropdown(
+                    choices=[
+                        ("On", 1),
+                        ("Off", 0),
+                    ],
+                    value=server_config.get("notification_sound_enabled", 1),
+                    label="Notification Sound Enabled"
+                )
+
+                notification_sound_volume_choice = gr.Slider(
+                    minimum=0,
+                    maximum=100,
+                    value=server_config.get("notification_sound_volume", 50),
+                    step=5,
+                    label="Notification Sound Volume (0 = silent, 100 = very loud)"
+                )
 
 
         
@@ -5765,7 +5827,9 @@ def generate_configuration_tab(state, blocks, header, model_choice, prompt_enhan
                     UI_theme_choice,
                     enhancer_enabled_choice,
                     fit_canvas_choice,
-                    preload_in_VRAM_choice
+                    preload_in_VRAM_choice,
+                    notification_sound_enabled_choice,
+                    notification_sound_volume_choice
                 ],
                 outputs= [msg , header, model_choice, prompt_enhancer_row]
         )
