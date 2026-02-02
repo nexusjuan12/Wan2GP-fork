@@ -1,10 +1,14 @@
 #!/bin/bash
 # Wan2GP install script for Vast.ai
 # Base image: nvidia/cuda:13.1.1-cudnn-devel-ubuntu22.04
-# Target: RTX 50XX with FP4 (Python 3.11 / PyTorch 2.10 / CUDA 13.0)
+# Target: RTX 50XX / Blackwell Pro 6000 (Python 3.11 / PyTorch 2.10 / CUDA 13.0)
+#
+# Usage:
+#   git clone https://github.com/nexusjuan12/Wan2GP-fork.git ~/Wan2GP-fork
+#   cd ~/Wan2GP-fork && ./install.sh
 set -e
 
-WORKSPACE="/root/workspace"
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ── System packages ──────────────────────────────────────────────────────────
 
@@ -27,26 +31,19 @@ apt-get install -y --no-install-recommends \
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 
-# ── Clone repos ──────────────────────────────────────────────────────────────
+# ── SageAttention (clone next to repo) ───────────────────────────────────────
 
-cd "$WORKSPACE"
-
-if [ ! -d "$WORKSPACE/Wan2GP" ]; then
-    git clone https://github.com/deepbeepmeep/Wan2GP.git
-fi
-
-if [ ! -d "$WORKSPACE/SageAttention" ]; then
-    git clone https://github.com/thu-ml/SageAttention.git
+SAGE_DIR="$REPO_DIR/../SageAttention"
+if [ ! -d "$SAGE_DIR" ]; then
+    git clone https://github.com/thu-ml/SageAttention.git "$SAGE_DIR"
 fi
 
 # ── Python venv ──────────────────────────────────────────────────────────────
 
-cd "$WORKSPACE/Wan2GP"
-
-if [ ! -d venv ]; then
-    python3.11 -m venv venv
+if [ ! -d "$REPO_DIR/venv" ]; then
+    python3.11 -m venv "$REPO_DIR/venv"
 fi
-source venv/bin/activate
+source "$REPO_DIR/venv/bin/activate"
 
 pip install --upgrade pip
 
@@ -62,7 +59,7 @@ pip install -U triton
 # ── SageAttention (build from source) ────────────────────────────────────────
 
 pip install "setuptools<=75.8.2" --force-reinstall
-pip install -e "$WORKSPACE/SageAttention"
+pip install -e "$SAGE_DIR"
 
 # ── ONNX runtime CUDA dependency (cufft for rembg) ──────────────────────────
 
@@ -70,13 +67,13 @@ pip install nvidia-cufft-cu12
 
 # ── Wan2GP requirements ──────────────────────────────────────────────────────
 
-pip install -r "$WORKSPACE/Wan2GP/requirements.txt"
+pip install -r "$REPO_DIR/requirements.txt"
 
-# ── Optional kernels (RTX 50XX) ──────────────────────────────────────────────
+# ── Optional kernels (RTX 50XX / Blackwell) ──────────────────────────────────
 
 # lightx2v kernel (Linux, Python 3.11, PyTorch 2.10, CUDA 13)
 pip install https://github.com/deepbeepmeep/kernels/releases/download/Light2xv/lightx2v_kernel-0.0.2+torch2.10.0-cp311-abi3-linux_x86_64.whl
 
 echo ""
 echo "Install complete. Run with:"
-echo "  cd $WORKSPACE/Wan2GP && ./run.sh"
+echo "  cd $REPO_DIR && ./run.sh"
