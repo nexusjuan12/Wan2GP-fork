@@ -64,6 +64,10 @@ pip install -U triton
 pip install "setuptools<=75.8.2" --force-reinstall
 pip install -e "$WORKSPACE/SageAttention"
 
+# ── ONNX runtime CUDA dependency (cufft for rembg) ──────────────────────────
+
+pip install nvidia-cufft-cu12
+
 # ── Wan2GP requirements ──────────────────────────────────────────────────────
 
 pip install -r "$WORKSPACE/Wan2GP/requirements.txt"
