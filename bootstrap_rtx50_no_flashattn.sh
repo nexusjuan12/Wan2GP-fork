@@ -4,16 +4,32 @@ set -euo pipefail
 REPO_URL="${WAN2GP_REPO_URL:-https://github.com/deepbeepmeep/Wan2GP.git}"
 INSTALL_DIR="${WAN2GP_INSTALL_DIR:-$HOME/Wan2GP}"
 
+# install uv if missing
 if ! command -v uv >/dev/null 2>&1; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
 
 export PATH="$HOME/.local/bin:$PATH"
 
+# clone repo
 rm -rf "$INSTALL_DIR"
 git clone "$REPO_URL" "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
+# ===== FIX: OpenCV runtime deps =====
+apt update && apt install -y \
+  libgl1 \
+  libglib2.0-0 \
+  libxcb1 \
+  libx11-6 \
+  libxext6 \
+  libsm6 \
+  libxrender1 \
+  libgomp1 \
+  ffmpeg
+# ===================================
+
+# patch config to disable flash attention + use SageAttention
 python3 - <<'PY'
 import json
 from pathlib import Path
@@ -36,6 +52,8 @@ for key in ("v211", "v220", "v220_cu13"):
 path.write_text(json.dumps(cfg, indent=4) + "\n")
 PY
 
+# ensure listen mode
 printf '%s\n' '--listen' > scripts/args.txt
 
+# install + run
 python3 setup.py install --env uv --auto
